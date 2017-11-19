@@ -8,8 +8,10 @@ app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
 app.set('port', 9000)
 
-app.post('/chat/messages', function(req, res) {
+app.post('/chat/messages', upload.array(), function(req, res) {
     console.log('chat message rec!')
+
+    console.log(req.body)
 })
 
 app.get('/', function(req, res) {
