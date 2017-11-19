@@ -1,0 +1,17 @@
+{
+  "name": "chatbotapi",
+  "version": "1.0.0",
+  "description": "",
+  "main": "chatbot.js",
+  "scripts": {
+    "start": "node chatbot.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Shannin Ciprich",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0",
+    "multer": "^1.2.1"
+  }
+}
