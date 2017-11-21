@@ -104,7 +104,7 @@ function sendErrorMessage(res, reason) {
             var sorryString = 'Sorry, but I can\'t help you without a location.'
             break
         case ERROR_REASONS.LOC_UNKNOWN:
-            var sorryString = 'I\m sorry, I don\'t know where that is.'
+            var sorryString = 'I\'m sorry, I don\'t know where that is.'
             break
         case ERROR_REASONS.ACTION_NONE:
             var sorryString = 'Well, you\'re going to have to tell me what you want to know.'
@@ -114,7 +114,7 @@ function sendErrorMessage(res, reason) {
             break
         case ERROR_REASONS.UNKNOWN:
         default:
-            var sorryString = 'I\m sorry, I don\'t quite understand what you mean by that.'
+            var sorryString = 'I\'m sorry, I don\'t quite understand what you mean by that.'
             break
     }
 
@@ -248,7 +248,7 @@ function generateWeatherString(action, skyCondition, temp, humidity) {
                 if (temp <= 32) {
                     var weatherString = 'Cloudy, but hey- it could be snowing... ' + temp + '°F'
                 } else {
-                    var weatherString = 'Could be worse. ' + temp + '°F'
+                    var weatherString = 'Cloud be worse. ' + temp + '°F'
                 }
                 break;
 
