@@ -98,6 +98,7 @@ function sendErrorMessage(res, reason) {
             var sorryString = 'Well, you\'re going to have to tell me what you want to know.'
             break
         case ERROR_REASONS.UNKNOWN:
+        default:
             var sorryString = 'I\m sorry, I don\'t quite understand what you mean by that.'
             break
     }
@@ -149,7 +150,7 @@ function parseMessage(message) {
             case 'NNP':
                 // check to see if the noun is one of the potential actions
                 if (ACTIONS[word.toUpperCase()]) {
-                    action = word.toUpperCase()
+                    action = ACTIONS[word.toUpperCase()]
                 } else {
                     otherWords.push(word)
                 }
