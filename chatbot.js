@@ -86,11 +86,15 @@ function respondMessage(res, message) {
                 return
             }
 
-            var weatherString = generateWeatherString(messageComponents.action, conditions.sky, conditions.temp, conditions.humidity)
+            if (messageComponents.action == ACTIONS.WEATHER) {
+                var responseString = generateWeatherString(conditions.sky, conditions.temp, conditions.humidity)
+            } else if (messageComponents.action == ACTIONS.HUMIDITY) {
+                var responseString = generateHumidityString(conditions.temp, conditions.humidity)
+            }
 
             var response = {
                 type: 'text',
-                text: weatherString
+                text: responseString
             }
 
             sendResponse(res, [response])
@@ -230,42 +234,52 @@ function getCurrentWeather(lat, lng, completion) {
     })
 }
 
-function generateWeatherString(action, skyCondition, temp, humidity) {
-    if (action == ACTIONS.WEATHER) {
-        switch (skyCondition) {
-            case 'clear-day':
-            case 'clear-night':
-                if (temp > 55) {
-                    var weatherString = 'It\'s beautiful out with a current temperature of ' + temp + '°F'
-                } else {
-                    var weatherString = 'It\'s beautiful, but a little cold. ' + temp + '°F'
-                }
-                break
+function generateWeatherString(skyCondition, temp, humidity) {
+    switch (skyCondition) {
+        case 'clear-day':
+        case 'clear-night':
+            if (temp > 55) {
+                var weatherString = 'It\'s beautiful out with a current temperature of ' + temp + '°F'
+            } else {
+                var weatherString = 'It\'s beautiful, but a little cold. ' + temp + '°F'
+            }
+            break
 
-            case 'cloudy':
-            case 'partly-cloudy-day':
-            case 'partly-cloudy-night':
-                if (temp <= 32) {
-                    var weatherString = 'Cloudy, but hey- it could be snowing... ' + temp + '°F'
-                } else {
-                    var weatherString = 'Cloud be worse. ' + temp + '°F'
-                }
-                break;
+        case 'cloudy':
+        case 'partly-cloudy-day':
+        case 'partly-cloudy-night':
+            if (temp <= 32) {
+                var weatherString = 'Cloudy, but hey- it could be snowing... ' + temp + '°F'
+            } else {
+                var weatherString = 'Cloud be worse. ' + temp + '°F'
+            }
+            break;
 
-            case 'rain':
-            case 'snow':
-                var weatherString = 'Ugh.  It\'s ' + skyCondition + 'ing and ' + temp + '°F'
-                break
+        case 'rain':
+        case 'snow':
+            var weatherString = 'Ugh.  It\'s ' + skyCondition + 'ing and ' + temp + '°F'
+            break
 
-            case 'sleet':
-            case 'wind':
-            default:
-                var weatherString = 'It\'s currently ' + temp + '°F.'
-        }
-
-        return weatherString
-    } else if (action == ACTIONS.HUMIDITY) {
-
+        case 'sleet':
+        case 'wind':
+        default:
+            var weatherString = 'It\'s currently ' + temp + '°F.'
     }
+
+    return weatherString
+}
+
+function generateHumidityString(temp, humidity) {
+    var humidityWholeNumber = Math.round(humidity * 100)
+
+    if (humidityWholeNumber > 75 && temperature > 80) {
+        var humidityString = 'Damn, is it muggy or what? ' + humidityWholeNumber + '% humidity.'
+    } else if (humidityWholeNumber < 10 && temperature > 70) {
+        var humidityString = 'So this is what it\'s like in a desert. ' + humidityWholeNumber + '% humidity.'
+    } else {
+        var humidityString = 'The current humidity level is ' + humidityWholeNumber + '%.'
+    }
+
+    return humidityString
 }
 
