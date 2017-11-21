@@ -3,9 +3,11 @@ var bodyParser = require('body-parser')
 var multer = require('multer')
 var upload = multer() // for parsing multipart/form-data
 var pos = require('pos')
+var DarkSky = require('forecast.io')
+var weather = new DarkSky({ APIKey: '8b4d5ca925446f9db4f7d7d0aac8b40c'})
 var maps = require('@google/maps').createClient({key: 'AIzaSyD7W7v5psM8TDJwUV2WxsPkoYRtByh07Y0'})
-var app = express()
 
+var app = express()
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
 app.set('port', 9000)
@@ -19,18 +21,19 @@ var ERROR_REASONS = {
     'LOC_NONE': 1,
     'LOC_UNKNOWN': 2,
     'ACTION_NONE': 3,
-    'UNKNOWN': 4
+    'WEATHER_UNKNOWN': 4,
+    'UNKNOWN': 5
 }
 
 app.post('/chat/messages', upload.array(), function(req, res) {
     switch (req.body.action) {
         case 'join':
-            respondJoin(req.body.name, res)
+            respondJoin(res, req.body.name)
             break
 
         case 'message':
         default:
-            respondMessage(req.body.text, res)
+            respondMessage(res, req.body.text)
             break
     }
 })
@@ -45,7 +48,7 @@ app.listen(app.get('port'), function () {
     console.log('Example app listening on port ' + app.get('port') + '!')
 })
 
-function respondJoin(name, res) {
+function respondJoin(res, name) {
     var welcomeMessage = {
         type: 'text',
         text: 'Hello ' + name + '! I\'m here to tell you about the weather.'
@@ -59,12 +62,16 @@ function respondJoin(name, res) {
     sendResponse(res, [welcomeMessage, followupQuestion])
 }
 
-function respondMessage(message, res) {
+function respondMessage(res, message) {
     var messageComponents = parseMessage(message)
 
     if (messageComponents.location == null) {
         sendErrorMessage(res, ERROR_REASONS.LOC_NONE)
         return
+    }
+
+    if (messageComponents.action == null) {
+        messageComponents.action = ACTIONS.WEATHER
     }
 
     getLatLngFromLocation(messageComponents.location, function(coords) {
@@ -73,16 +80,21 @@ function respondMessage(message, res) {
             return
         }
 
-        // get weather for coordinates
+        getCurrentWeather(coords.lat, coords.lng, function (conditions) {
+            if (conditions == null) {
+                sendErrorMessage(res, ERROR_REASONS.WEATHER_UNKNOWN)
+                return
+            }
 
-        var response = {
-            type: 'text',
-            text: 'I think I found the location!: ' + coords.lat + ', ' + coords.lng
-        }
+            var weatherString = generateWeatherString(messageComponents.action, conditions.sky, conditions.temp, conditions.humidity)
 
-        sendResponse(res, [response])
+            var response = {
+                type: 'text',
+                text: weatherString
+            }
 
-
+            sendResponse(res, [response])
+        })
     })
 }
 
@@ -96,6 +108,9 @@ function sendErrorMessage(res, reason) {
             break
         case ERROR_REASONS.ACTION_NONE:
             var sorryString = 'Well, you\'re going to have to tell me what you want to know.'
+            break
+        case ERROR_REASONS.WEATHER_UNKNOWN:
+            var sorryString = 'Hmm... I guess I don\'t know what\'s going on there.'
             break
         case ERROR_REASONS.UNKNOWN:
         default:
@@ -169,7 +184,8 @@ function parseMessage(message) {
 
     if (location == null) {
         // if the location is not already set to a zipcode, combine the remaining words into a location
-        // note: it would be better to check if all the words happened sequentially in the sentence
+        // note: it would be better to check if all the words happened sequentially in the sentence and
+        //       then determine what would most likely be a location
         var locationProcess = otherWords.join(' ')
         locationProcess = locationProcess.trim()
 
@@ -199,4 +215,57 @@ function getLatLngFromLocation(location, completion) {
     })
 }
 
+function getCurrentWeather(lat, lng, completion) {
+    weather.get(lat, lng, function (err, res, data) {
+        if (err || data == null) {
+            completion(null)
+            return
+        }
+
+        completion({
+            sky: data.currently.icon,
+            temp: Math.round(data.currently.temperature),
+            humidity: data.currently.humidity
+        })
+    })
+}
+
+function generateWeatherString(action, skyCondition, temp, humidity) {
+    if (action == ACTIONS.WEATHER) {
+        switch (skyCondition) {
+            case 'clear-day':
+            case 'clear-night':
+                if (temp > 55) {
+                    var weatherString = 'It\'s beautiful out with a current temperature of ' + temp + '°F'
+                } else {
+                    var weatherString = 'It\'s beautiful, but a little cold. ' + temp + '°F'
+                }
+                break
+
+            case 'cloudy':
+            case 'partly-cloudy-day':
+            case 'partly-cloudy-night':
+                if (temp <= 32) {
+                    var weatherString = 'Cloudy, but hey- it could be snowing... ' + temp + '°F'
+                } else {
+                    var weatherString = 'Could be worse. ' + temp + '°F'
+                }
+                break;
+
+            case 'rain':
+            case 'snow':
+                var weatherString = 'Ugh.  It\'s ' + skyCondition + 'ing and ' + temp + '°F'
+                break
+
+            case 'sleet':
+            case 'wind':
+            default:
+                var weatherString = 'It\'s currently ' + temp + '°F.'
+        }
+
+        return weatherString
+    } else if (action == ACTIONS.HUMIDITY) {
+
+    }
+}
 
