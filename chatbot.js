@@ -3,8 +3,8 @@ var bodyParser = require('body-parser')
 var multer = require('multer')
 var upload = multer() // for parsing multipart/form-data
 var pos = require('pos')
+var maps = require('@google/maps').createClient({key: 'AIzaSyD7W7v5psM8TDJwUV2WxsPkoYRtByh07Y0'})
 var app = express()
-
 
 app.use(bodyParser.json()) // for parsing application/json
 app.use(bodyParser.urlencoded({ extended: true })) // for parsing application/x-www-form-urlencoded
@@ -17,9 +17,9 @@ var ACTIONS = {
 
 var ERROR_REASONS = {
     'LOC_NONE': 1,
-    'LOC_UNKNOWN': 1,
-    'ACTION_NONE': 2,
-    'UNKNOWN': 3
+    'LOC_UNKNOWN': 2,
+    'ACTION_NONE': 3,
+    'UNKNOWN': 4
 }
 
 app.post('/chat/messages', upload.array(), function(req, res) {
@@ -45,26 +45,6 @@ app.listen(app.get('port'), function () {
     console.log('Example app listening on port ' + app.get('port') + '!')
 })
 
-function respondMessage(message, res) {
-    var messageComponents = parseMessage(message)
-
-    if (messageComponents.location == null) {
-        sendErrorMessage(res, ERROR_REASONS.LOC_NONE)
-    } else {
-        // get coordinates for location
-        // get weather for location
-        // send response
-
-        var responseMessage = {
-            type: 'text',
-            text: 'So you want the weather in ' + messageComponents.location + '?'
-        }
-
-        sendResponse(res, [responseMessage])
-    }
-}
-
-
 function respondJoin(name, res) {
     var welcomeMessage = {
         type: 'text',
@@ -79,6 +59,32 @@ function respondJoin(name, res) {
     sendResponse(res, [welcomeMessage, followupQuestion])
 }
 
+function respondMessage(message, res) {
+    var messageComponents = parseMessage(message)
+
+    if (messageComponents.location == null) {
+        sendErrorMessage(res, ERROR_REASONS.LOC_NONE)
+        return
+    }
+
+    getLatLngFromLocation(messageComponents.location, function(coords) {
+        if (coords == null) {
+            sendErrorMessage(res, ERROR_REASONS.LOC_UNKNOWN)
+            return
+        }
+
+        // get weather for coordinates
+
+        var response = {
+            type: 'text',
+            text: 'I think I found the location!: ' + coords.lat + ', ' + coords.lng
+        }
+
+        sendResponse(res, [response])
+
+
+    })
+}
 
 function sendErrorMessage(res, reason) {
     switch (reason) {
@@ -110,9 +116,9 @@ function sendErrorMessage(res, reason) {
 }
 
 function sendResponse(res, messages) {
-    res.setHeader('Access-Control-Allow-Origin', 'http://hipmunk.github.io');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Allow-Methods', 'POST');
+    res.setHeader('Access-Control-Allow-Origin', 'http://hipmunk.github.io')
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+    res.setHeader('Access-Control-Allow-Methods', 'POST')
 
     res.json({
         messages: messages
@@ -123,13 +129,16 @@ function sendResponse(res, messages) {
 // HELPER FUNCTIONS
 
 function parseMessage(message) {
-    var words = new pos.Lexer().lex(message);
-    var tagger = new pos.Tagger();
-    var taggedWords = tagger.tag(words);
+    // tag each word with part of speach (noun, adjective, etc.)
+    var words = new pos.Lexer().lex(message)
+    var tagger = new pos.Tagger()
+    var taggedWords = tagger.tag(words)
 
+    // what we want to extract from the message
     var action = null
     var location = null
 
+    // iterate over each word to see if we can gain meaning from it
     var otherWords = []
     for (var i = 0; i < taggedWords.length; i++) {
         var word = taggedWords[i][0]
@@ -138,13 +147,13 @@ function parseMessage(message) {
         switch (part) {
             case 'NN':
             case 'NNP':
-                // check to see if the noun is one of the potential commands
+                // check to see if the noun is one of the potential actions
                 if (ACTIONS[word.toUpperCase()]) {
                     action = word.toUpperCase()
                 } else {
                     otherWords.push(word)
                 }
-                break;
+                break
 
             case 'CD':
                 if (word.length == 5) {
@@ -153,12 +162,13 @@ function parseMessage(message) {
                 }
 
                 otherWords.push(word)
-                break;
+                break
         }
     }
 
     if (location == null) {
-        // if the location is not a zipcode, determine where we're checking the weather
+        // if the location is not already set to a zipcode, combine the remaining words into a location
+        // note: it would be better to check if all the words happened sequentially in the sentence
         var locationProcess = otherWords.join(' ')
         locationProcess = locationProcess.trim()
 
@@ -171,6 +181,21 @@ function parseMessage(message) {
         action: action,
         location: location
     }
+}
+
+function getLatLngFromLocation(location, completion) {
+    maps.geocode({
+        address: location
+    }, function(err, response) {
+        if (err || response.json.results.length == 0) {
+            console.log(err)
+            completion(null)
+            return
+        }
+
+        var locationCoordinates = response.json.results[0].geometry.location
+        completion(locationCoordinates)
+    })
 }
 
 
