@@ -1,3 +1,6 @@
+
+// Shannin Ciprich  --  shanninc@gmail.com
+
 var express = require('express')
 var bodyParser = require('body-parser')
 var multer = require('multer')
@@ -29,15 +32,15 @@ var ERROR_REASONS = {
 // it's based on the user_id that's sent with every message from the frontend
 // not ideal in a production situation, but fine for a demo
 
-/* {
-    uid: {
-        name: String,
-        showedTutorial: BOOL,
-        specifiedAction: ACTIONS
+/*
+    {
+        uid: {
+            name: String,
+            showedTutorial: BOOL,
+            specifiedAction: ACTIONS
+        }
     }
-
-} */
-
+*/
 
 var sessionStorage = {}
 
@@ -77,6 +80,7 @@ function respondJoin(res, uid, name) {
 
     sendResponse(res, [welcomeMessage, followupQuestion])
 
+    // store new session data
     sessionStorage[uid] = {
         name: name,
         showedTutorial: false,
@@ -88,7 +92,7 @@ function respondMessage(res, uid, message) {
     var messageComponents = parseMessage(message)
 
     if (messageComponents.location == null) {
-        sendErrorMessage(res, ERROR_REASONS.LOC_NONE)
+        sendErrorResponse(res, ERROR_REASONS.LOC_NONE)
         return
     }
 
@@ -96,7 +100,7 @@ function respondMessage(res, uid, message) {
 
     if (messageComponents.action == null) {
         if (state.specifiedAction == null) {
-            sendErrorMessage(res, ERROR_REASONS.ACTION_NONE)
+            sendErrorResponse(res, ERROR_REASONS.ACTION_NONE)
             return
         }
 
@@ -105,24 +109,27 @@ function respondMessage(res, uid, message) {
 
     getLatLngFromLocation(messageComponents.location, function(coords) {
         if (coords == null) {
-            sendErrorMessage(res, ERROR_REASONS.LOC_UNKNOWN)
+            sendErrorResponse(res, ERROR_REASONS.LOC_UNKNOWN)
             return
         }
 
         getCurrentWeather(coords.lat, coords.lng, function (conditions) {
             if (conditions == null) {
-                sendErrorMessage(res, ERROR_REASONS.WEATHER_UNKNOWN)
+                sendErrorResponse(res, ERROR_REASONS.WEATHER_UNKNOWN)
                 return
             }
 
-            if (messageComponents.action == ACTIONS.WEATHER) {
-                var responseString = generateWeatherString(conditions.sky, conditions.temp, conditions.humidity)
-            } else if (messageComponents.action == ACTIONS.HUMIDITY) {
-                var responseString = generateHumidityString(conditions.temp, conditions.humidity)
+            switch (messageComponents.action) {
+                case ACTIONS.WEATHER:
+                    var responseString = generateWeatherString(conditions.sky, conditions.temp, conditions.humidity)
+                    break
+
+                case ACTIONS.HUMIDITY:
+                    var responseString = generateHumidityString(conditions.temp, conditions.humidity)
+                    break
             }
 
             var response = []
-
             response.push({
                 type: 'text',
                 text: responseString
@@ -138,9 +145,9 @@ function respondMessage(res, uid, message) {
             }
 
             response.push({
-                    type: 'text',
-                    text: 'Anywhere else you\'d like to see the current conditions?  Just ask!'
-                })
+                type: 'text',
+                text: 'Anywhere else you\'d like to see the current conditions?  Just ask!'
+            })
 
             sendResponse(res, response)
 
@@ -149,7 +156,7 @@ function respondMessage(res, uid, message) {
     })
 }
 
-function sendErrorMessage(res, reason) {
+function sendErrorResponse(res, reason) {
     switch (reason) {
         case ERROR_REASONS.LOC_NONE:
             var sorryString = 'Sorry, but I can\'t help you without a location.'
@@ -233,11 +240,13 @@ function parseMessage(message) {
 
             case 'CD':
                 if (word.length == 5) {
-                    // it's a zipcode so save that as the location
+                    // it's a zipcode so set that as the location
                     location = word
                 }
 
                 otherWords.push(word)
+                break
+            default:
                 break
         }
     }
@@ -331,9 +340,9 @@ function generateWeatherString(skyCondition, temp, humidity) {
 function generateHumidityString(temp, humidity) {
     var humidityWholeNumber = Math.round(humidity * 100)
 
-    if (humidityWholeNumber > 75 && temperature > 80) {
+    if (humidityWholeNumber > 75 && temp > 80) {
         var humidityString = 'Damn, is it muggy or what? ' + humidityWholeNumber + '% humidity.'
-    } else if (humidityWholeNumber < 10 && temperature > 70) {
+    } else if (humidityWholeNumber < 10 && temp > 70) {
         var humidityString = 'So this is what it\'s like in a desert. ' + humidityWholeNumber + '% humidity.'
     } else {
         var humidityString = 'The current humidity level is ' + humidityWholeNumber + '%.'
