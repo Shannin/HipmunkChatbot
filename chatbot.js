@@ -321,7 +321,7 @@ function generateWeatherString(skyCondition, temp, humidity) {
             } else {
                 var weatherString = 'Cloud be worse. ' + temp + '°F'
             }
-            break;
+            break
 
         case 'rain':
         case 'snow':
