@@ -25,15 +25,31 @@ var ERROR_REASONS = {
     'UNKNOWN': 5
 }
 
+// this is to store some state information about various sessions
+// it's based on the user_id that's sent with every message from the frontend
+// not ideal in a production situation, but fine for a demo
+
+/* {
+    uid: {
+        name: String,
+        showedTutorial: BOOL,
+        specifiedAction: ACTIONS
+    }
+
+} */
+
+
+var sessionStorage = {}
+
 app.post('/chat/messages', upload.array(), function(req, res) {
     switch (req.body.action) {
         case 'join':
-            respondJoin(res, req.body.name)
+            respondJoin(res, req.body.user_id, req.body.name)
             break
 
         case 'message':
         default:
-            respondMessage(res, req.body.text)
+            respondMessage(res, req.body.user_id, req.body.text)
             break
     }
 })
@@ -48,7 +64,7 @@ app.listen(app.get('port'), function () {
     console.log('Example app listening on port ' + app.get('port') + '!')
 })
 
-function respondJoin(res, name) {
+function respondJoin(res, uid, name) {
     var welcomeMessage = {
         type: 'text',
         text: 'Hello ' + name + '! I\'m here to tell you about the weather.'
@@ -60,9 +76,15 @@ function respondJoin(res, name) {
     }
 
     sendResponse(res, [welcomeMessage, followupQuestion])
+
+    sessionStorage[uid] = {
+        name: name,
+        showedTutorial: false,
+        specifiedAction: ACTIONS.WEATHER
+    }
 }
 
-function respondMessage(res, message) {
+function respondMessage(res, uid, message) {
     var messageComponents = parseMessage(message)
 
     if (messageComponents.location == null) {
@@ -70,8 +92,15 @@ function respondMessage(res, message) {
         return
     }
 
+    var state = sessionStorage[uid]
+
     if (messageComponents.action == null) {
-        messageComponents.action = ACTIONS.WEATHER
+        if (state.specifiedAction == null) {
+            sendErrorMessage(res, ERROR_REASONS.ACTION_NONE)
+            return
+        }
+
+        messageComponents.action = state.specifiedAction
     }
 
     getLatLngFromLocation(messageComponents.location, function(coords) {
@@ -92,12 +121,30 @@ function respondMessage(res, message) {
                 var responseString = generateHumidityString(conditions.temp, conditions.humidity)
             }
 
-            var response = {
+            var response = []
+
+            response.push({
                 type: 'text',
                 text: responseString
+            })
+
+            if (state.showedTutorial == false) {
+                response.push({
+                    type: 'text',
+                    text: generateTutorialString()
+                })
+
+                state.showedTutorial = true
             }
 
-            sendResponse(res, [response])
+            response.push({
+                    type: 'text',
+                    text: 'Anywhere else you\'d like to see the current conditions?  Just ask!'
+                })
+
+            sendResponse(res, response)
+
+            state.specifiedAction = null
         })
     })
 }
@@ -122,17 +169,26 @@ function sendErrorMessage(res, reason) {
             break
     }
 
-    var sorryMessage = {
+    var errorResponse = []
+
+    errorResponse.push({
         type: 'text',
         text: sorryString
+    })
+
+    if (reason == ERROR_REASONS.ACTION_NONE) {
+        errorResponse.push({
+            type: 'text',
+            text: generateTutorialString()
+        })
     }
 
-    var instructionMessage = {
+    errorResponse.push({
         type: 'text',
         text: 'Please ask me about the weather in a location of your choice'
-    }
+    })
 
-    sendResponse(res, [sorryMessage, instructionMessage])
+    sendResponse(res, errorResponse)
 }
 
 function sendResponse(res, messages) {
@@ -146,7 +202,7 @@ function sendResponse(res, messages) {
 }
 
 
-// HELPER FUNCTIONS
+// MESSAGE PARSING FUNCTIONS
 
 function parseMessage(message) {
     // tag each word with part of speach (noun, adjective, etc.)
@@ -234,6 +290,9 @@ function getCurrentWeather(lat, lng, completion) {
     })
 }
 
+
+// GENERATE RESPONSE STRING FUNCTIONS
+
 function generateWeatherString(skyCondition, temp, humidity) {
     switch (skyCondition) {
         case 'clear-day':
@@ -281,5 +340,9 @@ function generateHumidityString(temp, humidity) {
     }
 
     return humidityString
+}
+
+function generateTutorialString() {
+    return 'Right now I can tell you about the [weather] or [humidity], if you ask nicely.'
 }
 
